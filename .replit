@@ -1,4 +1,4 @@
-entrypoint = "BERT_Model_Building.py"
+entrypoint = "BERT_Model.py"
 modules = ["python-3.10"]
 
 [nix]
@@ -11,5 +11,5 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["python3", "BERT_Model_Building.py"]
+run = ["python3", "BERT_Model.py"]
 deploymentTarget = "cloudrun"
