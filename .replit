@@ -1,4 +1,4 @@
-entrypoint = "BERT_Model.py"
+entrypoint = "data_parallelism.py"
 disableGuessImports = true
 disableInstallBeforeRun = true
 modules = ["python-3.10"]
@@ -13,5 +13,5 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["python3", "BERT_Model.py"]
+run = ["python3", "data_parallelism.py"]
 deploymentTarget = "cloudrun"

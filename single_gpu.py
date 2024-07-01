@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AdamW, BertForSequenceClassification, BertTokenizer
+import deepspeed
 
 
 # Custom Dataset class
@@ -16,15 +17,6 @@ class CustomTextDataset(Dataset):
 
     def __len__(self):
         return len(self.encodings['input_ids'])
-
-
-# Helper function to check data loading works
-def check_dataloader(loader):
-    print("Checking data loader...")
-    for batch_num, batch in enumerate(loader):
-        print(f"Batch {batch_num} loaded!")
-        if batch_num == 0:
-            print(batch)
 
 
 # Load data
@@ -58,26 +50,35 @@ print(f"Label Distribution: {torch.unique(labels, return_counts=True)}")
 dataset = CustomTextDataset(encodings)
 loader = DataLoader(dataset, batch_size=16)
 
-# Check if the DataLoader works properly
-# check_dataloader(loader)
-
 # Define the model with the correct number of classes
 num_labels = len(unique_correct)
 model = BertForSequenceClassification.from_pretrained('bert-base-cased',
                                                       num_labels=num_labels)
 print("Model loaded...")
 
-# Optimizer
-optimizer = AdamW(model.parameters(), lr=2e-5)
+# Define DeepSpeed configuration
+ds_config = {
+    "train_batch_size": 16,  # Global batch size (adjust as per your setup)
+    "gradient_accumulation_steps": 2,
+    "fp16": {
+        "enabled": True
+    },
+    "zero_optimization": {
+        "stage": 1
+    }
+}
+
+# Initialize DeepSpeed
+model_engine, optimizer, _, _ = deepspeed.initialize(
+    model=model, model_parameters=model.parameters(), config_params=ds_config)
 
 # Training loop
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model.to(device)
 
 print("Starting Training...")
 
 for epoch in range(3):
-    model.train()
+    model_engine.train()
     print(f"Starting epoch {epoch+1}...")
     for batch_num, batch in enumerate(loader):
         input_ids = batch['input_ids'].to(device)
@@ -85,18 +86,18 @@ for epoch in range(3):
         labels = batch['labels'].to(device)
 
         optimizer.zero_grad()
-        outputs = model(input_ids=input_ids,
-                        attention_mask=attention_mask,
-                        labels=labels)
+        outputs = model_engine(input_ids=input_ids,
+                               attention_mask=attention_mask,
+                               labels=labels)
         loss = outputs.loss
-        loss.backward()
-        optimizer.step()
+        model_engine.backward(loss)
+        model_engine.step()
         print(f'Batch {batch_num} complete!')
 
     print(f'Epoch {epoch+1} complete!')
 
     # Evaluate the model
-    model.eval()
+    model_engine.eval()
     correct_count = 0
     total = 0
     with torch.no_grad():
@@ -104,7 +105,8 @@ for epoch in range(3):
             input_ids = batch['input_ids'].to(device)
             attention_mask = batch['attention_mask'].to(device)
             labels = batch['labels'].to(device)
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model_engine(input_ids=input_ids,
+                                   attention_mask=attention_mask)
             _, predicted = torch.max(outputs.logits, 1)
             total += labels.size(0)
             correct_count += (predicted == labels).sum().item()
