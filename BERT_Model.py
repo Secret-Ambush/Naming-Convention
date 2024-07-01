@@ -37,6 +37,11 @@ encodings = tokenizer(incorrect,
                       max_length=50,
                       return_tensors='pt')
 
+unique_correct = list(set(correct))
+labels = torch.tensor([unique_correct.index(name) for name in correct])
+encodings['labels'] = labels
+print(f"Label Distribution: {torch.unique(labels, return_counts=True)}")
+
 # Create the dataset
 dataset = NameCorrectionDataset(encodings)
 
@@ -53,8 +58,8 @@ optimizer = AdamW(model.parameters(), lr=2e-5)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 for epoch in range(3):
-
     model.train()
+    batch_num = 0
     for batch in loader:
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
@@ -67,9 +72,10 @@ for epoch in range(3):
         loss = outputs.loss
         loss.backward()
         optimizer.step()
-        print(f'Batch {batch} complete!')
+        print(f'Batch {batch_num} complete!')
 
     print(f'Epoch {epoch+1} complete!')
+
     # Evaluate the model
     model.eval()
     correct = 0
