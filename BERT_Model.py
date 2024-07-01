@@ -3,28 +3,26 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AdamW, BertForSequenceClassification, BertTokenizer
 
-# Load data
-df2 = pd.read_csv('Datasets/dataset_final.csv')
 
-# Tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
-
-
-# Define your dataset class
-class NameCorrectionDataset(Dataset):
+# Custom Dataset class
+class CustomTextDataset(Dataset):
 
     def __init__(self, encodings):
         self.encodings = encodings
 
     def __getitem__(self, idx):
-        return {
-            key: torch.tensor(val[idx])
-            for key, val in self.encodings.items()
-        }
+        item = {key: tensor[idx] for key, tensor in self.encodings.items()}
+        return item
 
     def __len__(self):
-        return len(self.encodings.input_ids)
+        return len(self.encodings['input_ids'])
 
+
+# Load data
+df2 = pd.read_csv('Datasets/dataset_final.csv')
+
+# Tokenizer
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
 
 incorrect = [str(r) for r in df2['Incorrect']]
 correct = [str(r) for r in df2['Correct']]
@@ -37,26 +35,29 @@ encodings = tokenizer(incorrect,
                       max_length=50,
                       return_tensors='pt')
 
-unique_correct = list(set(correct))
-labels = torch.tensor([unique_correct.index(name) for name in correct])
+unique_correct = sorted(set(correct))
+labels_map = {name: idx for idx, name in enumerate(unique_correct)}
+labels = torch.tensor([labels_map[name] for name in correct])
 encodings['labels'] = labels
+
 print(f"Label Distribution: {torch.unique(labels, return_counts=True)}")
 
-# Create the dataset
-dataset = NameCorrectionDataset(encodings)
-
-# Create data loaders
-loader = DataLoader(dataset, batch_size=16)
+# Create data loaders with the custom dataset
+dataset = CustomTextDataset(encodings)
+loader = DataLoader(encodings, batch_size=16)
 
 # Define the model
-model = BertForSequenceClassification.from_pretrained('bert-base-cased')
+num_labels = len(unique_correct)
+model = BertForSequenceClassification.from_pretrained('bert-base-cased',
+                                                      num_labels=num_labels)
 
 # Optimizer
-optimizer = AdamW(model.parameters(), lr=2e-5)
+optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
 
 # Training loop
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
+
 for epoch in range(3):
     model.train()
     batch_num = 0
@@ -73,12 +74,13 @@ for epoch in range(3):
         loss.backward()
         optimizer.step()
         print(f'Batch {batch_num} complete!')
+        batch_num += 1
 
     print(f'Epoch {epoch+1} complete!')
 
     # Evaluate the model
     model.eval()
-    correct = 0
+    correct_count = 0
     total = 0
     with torch.no_grad():
         for batch in loader:
@@ -88,9 +90,9 @@ for epoch in range(3):
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             _, predicted = torch.max(outputs.logits, 1)
             total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            correct_count += (predicted == labels).sum().item()
 
-    accuracy = correct / total
+    accuracy = correct_count / total
     print(f'Accuracy: {accuracy:.4f}')
 
 # Save the model

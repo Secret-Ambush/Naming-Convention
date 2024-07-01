@@ -1,4 +1,6 @@
 entrypoint = "BERT_Model.py"
+disableGuessImports = true
+disableInstallBeforeRun = true
 modules = ["python-3.10"]
 
 [nix]
