@@ -1,0 +1,15 @@
+entrypoint = "BERT_Model_Building.py"
+modules = ["python-3.10"]
+
+[nix]
+channel = "stable-23_05"
+
+[unitTest]
+language = "python3"
+
+[gitHubImport]
+requiredFiles = [".replit", "replit.nix"]
+
+[deployment]
+run = ["python3", "BERT_Model_Building.py"]
+deploymentTarget = "cloudrun"
