@@ -68,9 +68,13 @@ ds_config = {
     }
 }
 
+# Initialize optimizer
+optimizer = AdamW(model.parameters(), lr=2e-5)
+print("Optimizer loaded...")
+
 # Initialize DeepSpeed
 model_engine, optimizer, _, _ = deepspeed.initialize(
-    model=model, model_parameters=model.parameters(), config_params=ds_config)
+    model=model, optimizer=optimizer, model_parameters=model.parameters(), config_params=ds_config)
 
 # Training loop
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
