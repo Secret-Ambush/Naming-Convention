@@ -2,7 +2,6 @@ from fuzzywuzzy import process
 import re
 import pandas as pd
 
-# Load the dataset
 df = pd.read_csv('Datasets/DataColl.csv', encoding='latin-1')
 
 # Drop the first row if needed (assuming it's a header row)
